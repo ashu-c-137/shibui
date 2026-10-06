@@ -10,7 +10,9 @@ permissions:
 jobs:
   release:
     name: Build and publish
-    runs-on: windows-latest
+    # windows-latest currently includes Visual Studio 2026, which the
+    # node-gyp bundled with this toolchain cannot detect.
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,3 +42,5 @@ jobs:
           name: Shibui 1.0.${{ github.run_number }}
           generate_release_notes: true
           files: release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

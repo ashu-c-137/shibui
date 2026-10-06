@@ -8,11 +8,12 @@
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5178 && electron .\"",
     "build": "vite build",
     "start": "vite build && electron .",
-    "pack": "vite build && electron-builder --win portable nsis"
+    "pack": "vite build && electron-builder --win portable nsis --publish never"
   },
   "build": {
     "appId": "shibui.bar",
     "productName": "Shibui",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
@@ -41,7 +42,9 @@
           ]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "signExecutable": false,
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
