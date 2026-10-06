@@ -15,7 +15,18 @@
         background: #121212;
         color: #f4f4f4;
       }
-      main { max-width: 880px; margin: 0 auto; padding: 72px 24px 96px; }
+      main { max-width: 880px; margin: 0 auto; padding: 56px 24px 96px; }
+      .screen {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        margin: 0 0 36px;
+        border-radius: 14px;
+        border: 1px solid #2a2a2a;
+        background: #202020;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      }
       .mark { height: 92px; width: auto; }
       .kana { margin-top: 14px; letter-spacing: 0.42em; font-size: 13px; color: rgba(255,255,255,0.5); }
       h1 { margin-top: 28px; font-size: 40px; font-weight: 600; letter-spacing: -0.04em; }
@@ -49,6 +60,7 @@
   </head>
   <body>
     <main>
+      <img class="screen" src="bar.png" alt="Shibui status bar with the active app, the current song, CPU, memory, the clock, and system icons." />
       <img class="mark" src="logo/shibui-logo-full.png" alt="Shibui" />
       <p class="kana">渋い</p>
       <h1>A quiet bar for Windows.</h1>
