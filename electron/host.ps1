@@ -44,6 +44,15 @@ public class RiceWin {
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
+public static class ShibuiCpu {
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+}
+"@
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
 public static class ShibuiMem {
   [StructLayout(LayoutKind.Sequential)]
   public struct MEMORYSTATUSEX {
@@ -221,36 +230,43 @@ function Initialize-WinRt {
 
 $script:ArtKey = ""
 $script:ArtData = ""
-$script:ArtMiss = 0
 
 function Get-CoverArt($props, [string]$key) {
-  if ($script:ArtKey -eq $key -and ($script:ArtData -or $script:ArtMiss -ge 2)) {
+  if ($script:ArtKey -eq $key -and $script:ArtData) {
     return $script:ArtData
   }
   $script:ArtKey = $key
   $script:ArtData = ""
-  if (-not $props -or -not $props.Thumbnail) {
-    $script:ArtMiss = 2
-    return ""
-  }
+  if (-not $props -or -not $props.Thumbnail) { return "" }
   try {
     $raw = [RiceThumb]::Read($props.Thumbnail)
-    if (-not $raw -or $raw.Length -lt 32) { $script:ArtMiss++; return "" }
-    $input = New-Object System.IO.MemoryStream(,$raw)
-    $img = [System.Drawing.Image]::FromStream($input)
-    $bmp = New-Object System.Drawing.Bitmap 96, 96
+    if (-not $raw -or $raw.Length -lt 32) { return "" }
+    $bytes = New-Object System.IO.MemoryStream(,$raw)
+    $img = [System.Drawing.Image]::FromStream($bytes)
+    $max = 480
+    $iw = [double]$img.Width
+    $ih = [double]$img.Height
+    $longest = [math]::Max($iw, $ih)
+    if ($longest -lt 1) { $longest = 1 }
+    $scale = [math]::Min(1.0, $max / $longest)
+    $nw = [int][math]::Max(1, [math]::Round($iw * $scale))
+    $nh = [int][math]::Max(1, [math]::Round($ih * $scale))
+    $bmp = New-Object System.Drawing.Bitmap $nw, $nh
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $g.DrawImage($img, 0, 0, 96, 96)
+    $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $g.DrawImage($img, 0, 0, $nw, $nh)
     $out = New-Object System.IO.MemoryStream
-    $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-    $g.Dispose(); $bmp.Dispose(); $img.Dispose(); $input.Dispose()
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" } | Select-Object -First 1
+    $enc = [System.Drawing.Imaging.Encoder]::Quality
+    $parms = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $parms.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($enc, [long]90)
+    if ($codec) { $bmp.Save($out, $codec, $parms) } else { $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Jpeg) }
+    $g.Dispose(); $bmp.Dispose(); $img.Dispose(); $bytes.Dispose()
     $script:ArtData = [Convert]::ToBase64String($out.ToArray())
     $out.Dispose()
-    $script:ArtMiss = 0
     return $script:ArtData
   } catch {
-    $script:ArtMiss++
     return ""
   }
 }
@@ -370,38 +386,51 @@ function Get-StartAppsList {
   $list | Sort-Object name -Unique
 }
 
-$script:StatsReady = $false
-$script:CpuCounter = $null
-$script:GpuCounters = @()
+$script:CpuPrev = $null
 
-function Get-Usage {
-  if (-not $script:StatsReady) {
-    try {
-      $script:CpuCounter = New-Object System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total")
-      [void]$script:CpuCounter.NextValue()
-    } catch { $script:CpuCounter = $null }
+function Get-CpuPercent {
+  $idle = [int64]0
+  $kernel = [int64]0
+  $user = [int64]0
+  if (-not [ShibuiCpu]::GetSystemTimes([ref]$idle, [ref]$kernel, [ref]$user)) { return 0 }
+  if (-not $script:CpuPrev) {
+    $script:CpuPrev = @{ idle = $idle; kernel = $kernel; user = $user }
+    Start-Sleep -Milliseconds 250
+    return Get-CpuPercent
+  }
+  $dIdle = $idle - $script:CpuPrev.idle
+  $dTotal = ($kernel - $script:CpuPrev.kernel) + ($user - $script:CpuPrev.user)
+  $script:CpuPrev = @{ idle = $idle; kernel = $kernel; user = $user }
+  if ($dTotal -le 0) { return 0 }
+  $pct = 100.0 * ($dTotal - $dIdle) / $dTotal
+  if ($pct -lt 0) { $pct = 0 }
+  return [int][math]::Round([math]::Min(100, $pct))
+}
+
+function Get-GpuPercent {
+  $peak = 0.0
+  try {
+    $samples = (Get-Counter -Counter "\GPU Engine(*)\Utilization Percentage" -ErrorAction Stop).CounterSamples
+    foreach ($s in $samples) {
+      if ($s.CookedValue -gt $peak) { $peak = [double]$s.CookedValue }
+    }
+  } catch {
     try {
       $cat = New-Object System.Diagnostics.PerformanceCounterCategory "GPU Engine"
       foreach ($inst in @($cat.GetInstanceNames())) {
-        if ($inst -notlike "*engtype_3D") { continue }
+        if ($inst -notlike "*engtype_3D*") { continue }
         $counter = New-Object System.Diagnostics.PerformanceCounter("GPU Engine", "Utilization Percentage", $inst)
-        [void]$counter.NextValue()
-        $script:GpuCounters += $counter
+        $v = [double]$counter.NextValue()
+        if ($v -gt $peak) { $peak = $v }
       }
     } catch { }
-    $script:StatsReady = $true
   }
+  return [int][math]::Round([math]::Min(100, $peak))
+}
 
-  $cpu = 0
-  $gpu = 0
-  try { if ($script:CpuCounter) { $cpu = [int][math]::Round([math]::Min(100, $script:CpuCounter.NextValue())) } } catch { }
-  foreach ($counter in $script:GpuCounters) {
-    try {
-      $value = [double]$counter.NextValue()
-      if ($value -gt $gpu) { $gpu = $value }
-    } catch { }
-  }
-  $gpu = [int][math]::Round([math]::Min(100, $gpu))
+function Get-Usage {
+  $cpu = Get-CpuPercent
+  $gpu = Get-GpuPercent
 
   $mem = New-Object ShibuiMem+MEMORYSTATUSEX
   $mem.dwLength = [uint32][Runtime.InteropServices.Marshal]::SizeOf([type]"ShibuiMem+MEMORYSTATUSEX")

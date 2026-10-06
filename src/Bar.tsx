@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import type { FullState, WidgetId } from "./types";
-import markUrl from "../assets/logo/shibui-logo-icon-only.png";
 import wordmarkUrl from "../assets/logo/shibui-logo-full.png";
 import {
   IconBattery,
   IconEthernet,
   IconGear,
+  IconLock,
   IconPause,
   IconPlay,
   IconPower,
@@ -14,7 +14,7 @@ import {
   IconSleep,
   IconSpeaker,
   IconWifi,
-  IconLock,
+  ShibuiMark,
 } from "./Icons";
 
 type Menu = "sound" | "network" | "power" | "clock" | "media" | "logo" | "stats";
@@ -90,12 +90,12 @@ export function Bar({ state }: { state: FullState }) {
   };
 
   const mediaPlaying = /playing/i.test(sys.media?.status || "");
-  const swapMedia = mediaPlaying && visible("media");
+  const centerMedia = hasTrack(sys.media) && visible("media");
   const sideItems = (ids: WidgetId[]) =>
     ids
       .filter((id) => id !== "clock" && visible(id))
       .flatMap((id) => {
-        if (id === "media" && swapMedia) return visible("clock") ? (["clock"] as WidgetId[]) : [];
+        if (id === "media" && centerMedia) return visible("clock") ? (["clock"] as WidgetId[]) : [];
         return [id];
       });
   const left = sideItems(config.orderLeft);
@@ -106,7 +106,7 @@ export function Bar({ state }: { state: FullState }) {
       case "logo":
         return (
           <button className="chip icon mark-btn" title="Shibui" onClick={(e) => openMenu("logo", e.currentTarget)}>
-            <img className="mark" src={markUrl} alt="" />
+            <ShibuiMark className="mark" />
           </button>
         );
       case "activeWindow":
@@ -191,7 +191,7 @@ export function Bar({ state }: { state: FullState }) {
       <div className="bar">
         <div className="cluster">{left.map((id) => <div key={id}>{widget(id)}</div>)}</div>
         <div className="cluster center">
-          {swapMedia ? widget("media") : visible("clock") ? widget("clock") : null}
+          {centerMedia ? widget("media") : visible("clock") ? widget("clock") : null}
         </div>
         <div className="cluster right">{right.map((id) => <div key={id}>{widget(id)}</div>)}</div>
       </div>
@@ -220,18 +220,17 @@ export function MenuWindow({ state }: { state: FullState }) {
     window.rice.command("open-external", { url });
     window.rice.command("close-menu");
   };
-  const mediaArt =
-    name === "media" && sys.media?.art
-      ? { backgroundImage: `url(data:image/jpeg;base64,${sys.media.art})` }
-      : undefined;
+  const mediaArt = name === "media" && sys.media?.art ? `data:image/jpeg;base64,${sys.media.art}` : "";
 
   return (
-    <div className={`menu menu-pop${name === "media" ? " media-stage" : ""}`} style={mediaArt}>
+    <div className={`menu menu-pop${name === "media" ? " media-stage" : ""}`}>
+      {mediaArt ? <img className="media-cover" alt="" src={mediaArt} /> : null}
       {name === "logo" && (
         <>
           <div className="menu-brand"><img className="wordmark" src={wordmarkUrl} alt="Shibui" /></div>
           <button className="menu-item" onClick={() => window.rice.openDashboard()}>Open dashboard…</button>
           <button className="menu-item" onClick={() => window.rice.openSearch()}>Quick search</button>
+          <button className="menu-item" onClick={() => window.rice.command("reload-bar")}>Reload status bar</button>
           <button className="menu-item danger" onClick={() => window.rice.command("quit")}>Quit Shibui</button>
         </>
       )}

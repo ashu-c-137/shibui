@@ -255,7 +255,7 @@ async function tick() {
   polling = true;
   try {
     const next = await runHost("poll");
-    if (next && (next.window || next.sound || next.network)) {
+    if (next && (next.window || next.sound || next.network || next.usage || next.media !== undefined)) {
       sys = {
         window: next.window || sys.window,
         media: next.media ?? null,
@@ -518,7 +518,7 @@ function syncDock(covered) {
 function openMenu(name, centerX) {
   if (!docked || !barWin || barWin.isDestroyed()) return;
   const width = name === "media" ? 300 : 260;
-  const height = name === "clock" ? 148 : name === "power" ? 250 : name === "media" ? 360 : name === "stats" ? 236 : 210;
+  const height = name === "clock" ? 148 : name === "power" ? 250 : name === "media" ? 360 : name === "stats" ? 236 : name === "logo" ? 320 : 210;
   const strip = barStrip();
   let x = Math.round(centerX - width / 2);
   const maxX = strip.display.bounds.x + strip.display.bounds.width - width - 8;
@@ -701,6 +701,17 @@ ipcMain.handle("command", async (e, name, payload = {}) => {
     }
     case "open-external": {
       if (payload.url) await shell.openExternal(payload.url);
+      return { ok: true };
+    }
+    case "reload-bar": {
+      closeMenu();
+      if (barWin && !barWin.isDestroyed()) {
+        barWin.webContents.reload();
+        setTimeout(() => {
+          tick();
+          if (docked) setWorkArea("reserve");
+        }, 400);
+      }
       return { ok: true };
     }
     case "quit": {

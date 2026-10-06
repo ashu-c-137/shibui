@@ -87,6 +87,18 @@ export const IconSkip = ({ dir = 1 }: { dir?: 1 | -1 }) => (
   </svg>
 );
 
+const wave =
+  "M20 108.5C47.7 108.5 68.3 141.5 96 141.5C123.7 141.5 144.3 108.5 172 108.5C199.7 108.5 220.3 141.5 248 141.5C275.7 141.5 296.3 108.5 324 108.5C351.7 108.5 372.3 141.5 400 141.5C427.7 141.5 448.3 108.5 476 108.5";
+
+export const ShibuiMark = (p: P) => (
+  <svg viewBox="8 88 484 324" fill="none" stroke="currentColor" strokeWidth="18" strokeLinecap="round" aria-hidden {...p}>
+    <path d={wave} />
+    <path d={wave} transform="translate(0 83)" />
+    <path d={wave} transform="translate(0 166)" />
+    <path d={wave} transform="translate(0 249)" />
+  </svg>
+);
+
 export const IconClose = () => (
   <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" strokeWidth="2.2" aria-hidden>
     <path d="M6 6l12 12M18 6 6 18" />
