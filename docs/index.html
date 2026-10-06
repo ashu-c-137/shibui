@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shibui (渋い)</title>
+    <meta name="description" content="A quiet menu bar for Windows." />
+    <link rel="icon" href="logo/shibui-logo-icon-only.png" />
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #121212;
+        color: #f4f4f4;
+      }
+      main { max-width: 880px; margin: 0 auto; padding: 72px 24px 96px; }
+      .mark { height: 92px; width: auto; }
+      .kana { margin-top: 14px; letter-spacing: 0.42em; font-size: 13px; color: rgba(255,255,255,0.5); }
+      h1 { margin-top: 28px; font-size: 40px; font-weight: 600; letter-spacing: -0.04em; }
+      .lead { margin-top: 14px; max-width: 460px; font-size: 18px; line-height: 1.5; color: rgba(255,255,255,0.72); }
+      .actions { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-weight: 650;
+      }
+      a.primary { background: #0a84ff; color: #fff; }
+      a.ghost { color: #fff; border: 1px solid rgba(255,255,255,0.18); }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 64px; }
+      article {
+        padding: 18px 16px;
+        border-radius: 16px;
+        background: #1c1c1c;
+        border: 1px solid #2a2a2a;
+      }
+      article h2 { font-size: 15px; margin-bottom: 6px; }
+      article p { font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.62); }
+      footer { margin-top: 48px; font-size: 12px; color: rgba(255,255,255,0.4); }
+      @media (max-width: 720px) {
+        .grid { grid-template-columns: 1fr; }
+        h1 { font-size: 32px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="mark" src="logo/shibui-logo-full.png" alt="Shibui" />
+      <p class="kana">渋い</p>
+      <h1>A quiet bar for Windows.</h1>
+      <p class="lead">Shibui keeps the clock, the song, and the machine in one thin strip. The rest of the screen stays yours.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/ashu-c-137/shibui/releases/latest">Download for Windows</a>
+        <a class="btn ghost" href="https://github.com/ashu-c-137/shibui">Source</a>
+      </div>
+      <section class="grid">
+        <article>
+          <h2>Now playing</h2>
+          <p>Artwork fills the bar and fades at the edges. The player opens on the full cover.</p>
+        </article>
+        <article>
+          <h2>CPU, GPU, memory</h2>
+          <p>Live use on the bar. Open a chip for the meters and how long the machine has been up.</p>
+        </article>
+        <article>
+          <h2>Your choice</h2>
+          <p>The installer asks what belongs on the bar. Search, power, and the dashboard stay one click away.</p>
+        </article>
+      </section>
+      <footer>Shibui starts when you sign in. It is not a Windows service.</footer>
+    </main>
+  </body>
+</html>
