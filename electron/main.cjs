@@ -284,6 +284,20 @@ function barStrip() {
   return { x, y, width, height: Math.max(getConfig().barHeight, 28), display };
 }
 
+function physicalBar() {
+  const strip = barStrip();
+  const scale = strip.display.scaleFactor || 1;
+  const { x, y, width } = strip.display.bounds;
+  return {
+    strip,
+    scale,
+    left: Math.round(x * scale),
+    top: Math.round(y * scale),
+    right: Math.round((x + width) * scale),
+    height: Math.round(strip.height * scale),
+  };
+}
+
 function hwndOf(win) {
   const buf = win.getNativeWindowHandle();
   if (buf.length >= 8) return buf.readBigUInt64LE(0).toString();
@@ -362,9 +376,11 @@ function createSetup() {
 }
 
 function createDash() {
+  closeOtherPopups(dashWin);
   if (dashWin && !dashWin.isDestroyed()) {
     dashWin.show();
     dashWin.focus();
+    armOutsideClick(dashWin);
     return;
   }
   const display = screen.getPrimaryDisplay();
@@ -388,18 +404,21 @@ function createDash() {
       additionalArguments: ["--rice-kind=dashboard"],
     },
   });
-  dashWin.setAlwaysOnTop(true, "pop-up-menu");
+  dashWin.setAlwaysOnTop(true, "screen-saver");
   bindEscape(dashWin);
   loadWindow(dashWin, "dashboard");
+  armOutsideClick(dashWin);
   dashWin.on("closed", () => {
     dashWin = null;
   });
 }
 
 function createSearch() {
+  closeOtherPopups(searchWin);
   if (searchWin && !searchWin.isDestroyed()) {
     searchWin.show();
     searchWin.focus();
+    armOutsideClick(searchWin);
     return;
   }
   const display = screen.getPrimaryDisplay();
@@ -423,9 +442,10 @@ function createSearch() {
       additionalArguments: ["--rice-kind=search"],
     },
   });
-  searchWin.setAlwaysOnTop(true, "pop-up-menu");
+  searchWin.setAlwaysOnTop(true, "screen-saver");
   bindEscape(searchWin);
   loadWindow(searchWin, "search");
+  armOutsideClick(searchWin);
   searchWin.on("closed", () => {
     searchWin = null;
   });
@@ -439,29 +459,127 @@ function bindEscape(win) {
   });
 }
 
+let dismissWin = null;
+let dismissPopup = null;
+
+const DISMISS_URL =
+  "data:text/html;charset=utf-8," +
+  encodeURIComponent(`<!doctype html>
+<html>
+<head>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.02); }
+</style>
+</head>
+<body>
+<script>
+  function go() { window.close(); }
+  document.addEventListener("pointerdown", go, true);
+  document.addEventListener("mousedown", go, true);
+</script>
+</body>
+</html>`);
+
+function releaseDismiss() {
+  const layer = dismissWin;
+  dismissWin = null;
+  dismissPopup = null;
+  if (layer && !layer.isDestroyed()) layer.destroy();
+}
+
+function armOutsideClick(popup) {
+  if (!popup || popup.isDestroyed()) return;
+  if (dismissPopup === popup && dismissWin && !dismissWin.isDestroyed()) {
+    popup.setAlwaysOnTop(true, "pop-up-menu");
+    popup.moveTop();
+    popup.focus();
+    return;
+  }
+  releaseDismiss();
+  const bounds = screen.getPrimaryDisplay().bounds;
+  const layer = new BrowserWindow({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    focusable: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    backgroundColor: "#05000000",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  dismissWin = layer;
+  dismissPopup = popup;
+  let closing = false;
+  const closeBoth = () => {
+    if (closing) return;
+    closing = true;
+    if (dismissWin === layer) {
+      dismissWin = null;
+      dismissPopup = null;
+    }
+    if (!layer.isDestroyed()) layer.destroy();
+    if (!popup.isDestroyed()) popup.close();
+  };
+  layer.setAlwaysOnTop(true, "screen-saver");
+  layer.loadURL(DISMISS_URL);
+  layer.on("closed", closeBoth);
+  popup.on("blur", () => {
+    setTimeout(() => {
+      if (closing || popup.isDestroyed()) return;
+      if (popup.isFocused()) return;
+      closeBoth();
+    }, 80);
+  });
+  popup.once("closed", closeBoth);
+  layer.show();
+  layer.moveTop();
+  popup.setAlwaysOnTop(true, "screen-saver");
+  popup.moveTop();
+  if (!popup.isFocused()) popup.focus();
+}
+
+function closeOtherPopups(keep) {
+  if (keep !== menuWin) closeMenu();
+  if (keep !== dashWin && dashWin && !dashWin.isDestroyed()) dashWin.close();
+  if (keep !== searchWin && searchWin && !searchWin.isDestroyed()) searchWin.close();
+}
+
 function closeMenu() {
   if (menuWin && !menuWin.isDestroyed()) menuWin.close();
   menuWin = null;
 }
 
 async function setWorkArea(action) {
-  const strip = barStrip();
+  const phys = physicalBar();
   const hwnd = barWin && !barWin.isDestroyed() ? hwndOf(barWin) : "0";
   const rect = await runPs(workareaPath, [
     "-Action", action,
-    "-Height", String(strip.height),
+    "-Height", String(phys.height),
     "-Hwnd", hwnd,
-    "-Left", String(strip.display.bounds.x),
-    "-Top", String(strip.display.bounds.y),
-    "-Right", String(strip.display.bounds.x + strip.display.bounds.width),
-    "-Bottom", String(strip.display.bounds.y + strip.display.bounds.height),
+    "-Left", String(phys.left),
+    "-Top", String(phys.top),
+    "-Right", String(phys.right),
+    "-Bottom", String(phys.top + Math.round(phys.strip.display.bounds.height * phys.scale)),
   ]);
   if (action === "reserve" && rect && Number.isFinite(rect.right) && barWin && !barWin.isDestroyed()) {
     barWin.setBounds({
-      x: rect.left,
-      y: rect.top,
-      width: Math.max(1, rect.right - rect.left),
-      height: Math.max(strip.height, rect.bottom - rect.top),
+      x: Math.round(rect.left / phys.scale),
+      y: Math.round(rect.top / phys.scale),
+      width: Math.max(1, Math.round((rect.right - rect.left) / phys.scale)),
+      height: phys.strip.height,
     });
     barWin.setAlwaysOnTop(true, "screen-saver");
   }
@@ -517,6 +635,7 @@ function syncDock(covered) {
 
 function openMenu(name, centerX) {
   if (!docked || !barWin || barWin.isDestroyed()) return;
+  closeOtherPopups(menuWin);
   const width = name === "media" ? 300 : 260;
   const height = name === "clock" ? 148 : name === "power" ? 250 : name === "media" ? 360 : name === "stats" ? 236 : name === "logo" ? 320 : 210;
   const strip = barStrip();
@@ -530,6 +649,7 @@ function openMenu(name, centerX) {
     menuWin.focus();
     menuWin.webContents.executeJavaScript(`location.hash = ${JSON.stringify(`menu/${name}`)}`);
     menuWin.webContents.send("state", getFullState());
+    armOutsideClick(menuWin);
     return;
   }
   menuWin = new BrowserWindow({
@@ -552,14 +672,10 @@ function openMenu(name, centerX) {
       additionalArguments: ["--rice-kind=menu"],
     },
   });
-  menuWin.setAlwaysOnTop(true, "pop-up-menu");
+  menuWin.setAlwaysOnTop(true, "screen-saver");
   bindEscape(menuWin);
   loadWindow(menuWin, `menu/${name}`);
-  menuWin.webContents.once("did-finish-load", () => {
-    setTimeout(() => {
-      if (menuWin && !menuWin.isDestroyed()) menuWin.on("blur", () => closeMenu());
-    }, 250);
-  });
+  armOutsideClick(menuWin);
   menuWin.on("closed", () => {
     menuWin = null;
   });
